@@ -23,6 +23,10 @@ DOC_TYPE_PASSPORT = "passport"
 DOC_TYPE_BANK_STATEMENT = "bank_statement"
 DOC_TYPE_DRIVER_LICENSE = "driver_license"
 DOC_TYPE_TAX_FORM = "tax_form"
+DOC_TYPE_FINANCIAL_REPORT = "financial_report"
+DOC_TYPE_MEETING_MINUTES = "meeting_minutes"
+DOC_TYPE_RESUME = "resume"
+DOC_TYPE_TRAVEL_ITINERARY = "travel_itinerary"
 DOC_TYPE_GENERAL = "general"
 
 
@@ -201,6 +205,71 @@ def match_tax_form(text: str) -> float:
     return min(matches / len(patterns), 1.0)
 
 
+def match_financial_report(text: str) -> float:
+    """
+    Financial report / analysis patterns:
+    - Quarterly/annual reports, earnings, revenue, net income
+    - SEC filings language, stock analysis
+    """
+    patterns = [
+        r"財務報告|財報|Financial Report|Annual Report",
+        r"營收|Revenue|Net Income|淨損|淨利|EPS",
+        r"資產負債|Balance Sheet|Cash Flow|現金流",
+        r"每股|股價|市值|Market Cap|股數",
+        r"毛利率|營業利益|Operating Income|EBITDA",
+    ]
+    matches = sum(1 for p in patterns if re.search(p, text, re.IGNORECASE))
+    return min(matches / len(patterns), 1.0)
+
+
+def match_meeting_minutes(text: str) -> float:
+    """
+    Meeting minutes patterns:
+    - Attendees, agenda, action items, decisions
+    """
+    patterns = [
+        r"會議記錄|會議紀要|Meeting Minutes|Minutes of",
+        r"出席|Attendees|Participants|與會",
+        r"決議|Resolution|Action Items|待辦事項",
+        r"會議時間|Date.*Time|下次會議|Next Meeting",
+        r"主席|Chair|Moderator|主持人",
+    ]
+    matches = sum(1 for p in patterns if re.search(p, text, re.IGNORECASE))
+    return min(matches / len(patterns), 1.0)
+
+
+def match_resume(text: str) -> float:
+    """
+    Resume / CV patterns:
+    - Education, experience, skills, contact
+    """
+    patterns = [
+        r"履歷|簡歷|Resume|Curriculum Vitae|CV",
+        r"學歷|Education|Degree|University|大學",
+        r"工作經歷|Work Experience|Employment|任職",
+        r"技能|Skills|Competenc|專長",
+        r"Email.*Phone|電話.*信箱|Contact|聯繫方式",
+    ]
+    matches = sum(1 for p in patterns if re.search(p, text, re.IGNORECASE))
+    return min(matches / len(patterns), 1.0)
+
+
+def match_travel_itinerary(text: str) -> float:
+    """
+    Travel itinerary patterns:
+    - Flight, hotel, dates, destinations
+    """
+    patterns = [
+        r"行程|Itinerary|Travel Plan|旅遊",
+        r"航班|Flight|航班號|Departure|Arrival",
+        r"酒店|Hotel|住宿|Check-in|Check-out",
+        r"目的地|Destination|出發|Arrival",
+        r"護照|Passport|簽證|Visa|機票",
+    ]
+    matches = sum(1 for p in patterns if re.search(p, text, re.IGNORECASE))
+    return min(matches / len(patterns), 1.0)
+
+
 # =============================================================================
 # Main Classifier
 # =============================================================================
@@ -233,6 +302,10 @@ def classify(text: str) -> ClassificationResult:
         DOC_TYPE_BANK_STATEMENT: match_bank_statement(text),
         DOC_TYPE_DRIVER_LICENSE: match_driver_license(text),
         DOC_TYPE_TAX_FORM: match_tax_form(text),
+        DOC_TYPE_FINANCIAL_REPORT: match_financial_report(text),
+        DOC_TYPE_MEETING_MINUTES: match_meeting_minutes(text),
+        DOC_TYPE_RESUME: match_resume(text),
+        DOC_TYPE_TRAVEL_ITINERARY: match_travel_itinerary(text),
     }
 
     best_type = max(scores, key=scores.get)
@@ -253,11 +326,15 @@ def classify(text: str) -> ClassificationResult:
 # Simple test
 if __name__ == "__main__":
     test_texts = {
-        "invoice": "發票號碼: AB12345678 統一編號: 12345678 金額: 1200元 發票日期: 2025年03月15日",
-        "business_card": "姓名: 王大明 電話: 0912-345-678 Email: test@example.com",
-        "receipt": "收據號碼: R20250315001 商店: 7-ELEVEN 實付: 85元",
-        "contract": "合約甲方: 某某公司 第1條 簽署人: 張三",
-        "id_card": "身分證字號: A123456789 姓名: 李四 出生日期: 1990年01月01日",
+        "invoice": "發票號碼: AB12345678\n統一編號: 12345678\n金額: NT$ 1,200\n發票日期: 2025年03月15日",
+        "business_card": "姓名: 王大明\n電話: 0912-345-678\nEmail: test@example.com",
+        "receipt": "收據號碼: R20250315001\n商店: 7-ELEVEN\n實付: 85元",
+        "contract": "合約甲方: 某某公司\n第1條\n簽署人: 張三",
+        "id_card": "身分證字號: A123456789\n姓名: 李四\n出生日期: 1990年01月01日",
+        "financial_report": "財務報告 2024\n營收: 1.812M\n淨損: -54.709M\n毛利率: -94.8%",
+        "meeting_minutes": "會議記錄\n出席: 王經理、李主管\n決議: 通過Q2預算\n下次會議: 2025-04-01",
+        "resume": "王大明\nEmail: wang@test.com Phone: 0912-345-678\n學歷: 台灣大學資訊工程系\n工作經歷: 軟體工程師 3年\n技能: Python, JavaScript",
+        "travel_itinerary": "旅遊行程\n航班: BR851 台北-東京 08:00\n酒店: Hilton Tokyo Check-in: 2025-04-01\n目的地: 東京",
         "general": "這是一個普通文件內容。",
     }
 

@@ -37,6 +37,15 @@ def render_agent_prompt(doc_type: str, data: Dict[str, Any], text: str) -> str:
         "receipt": "receipt.md",
         "table": "table.md",
         "contract": "contract.md",
+        "id_card": "id_card.md",
+        "passport": "passport.md",
+        "bank_statement": "bank_statement.md",
+        "driver_license": "driver_license.md",
+        "tax_form": "tax_form.md",
+        "financial_report": "financial_report.md",
+        "meeting_minutes": "meeting_minutes.md",
+        "resume": "resume.md",
+        "travel_itinerary": "travel_itinerary.md",
         "general": "general.md",
     }
 

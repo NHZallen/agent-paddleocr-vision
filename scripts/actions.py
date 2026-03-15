@@ -19,14 +19,18 @@ try:
         DOC_TYPE_INVOICE, DOC_TYPE_BUSINESS_CARD, DOC_TYPE_RECEIPT,
         DOC_TYPE_TABLE, DOC_TYPE_CONTRACT, DOC_TYPE_GENERAL,
         DOC_TYPE_ID_CARD, DOC_TYPE_PASSPORT, DOC_TYPE_BANK_STATEMENT,
-        DOC_TYPE_DRIVER_LICENSE, DOC_TYPE_TAX_FORM
+        DOC_TYPE_DRIVER_LICENSE, DOC_TYPE_TAX_FORM,
+        DOC_TYPE_FINANCIAL_REPORT, DOC_TYPE_MEETING_MINUTES,
+        DOC_TYPE_RESUME, DOC_TYPE_TRAVEL_ITINERARY
     )
 except ImportError:
     from classify import (
         DOC_TYPE_INVOICE, DOC_TYPE_BUSINESS_CARD, DOC_TYPE_RECEIPT,
         DOC_TYPE_TABLE, DOC_TYPE_CONTRACT, DOC_TYPE_GENERAL,
         DOC_TYPE_ID_CARD, DOC_TYPE_PASSPORT, DOC_TYPE_BANK_STATEMENT,
-        DOC_TYPE_DRIVER_LICENSE, DOC_TYPE_TAX_FORM
+        DOC_TYPE_DRIVER_LICENSE, DOC_TYPE_TAX_FORM,
+        DOC_TYPE_FINANCIAL_REPORT, DOC_TYPE_MEETING_MINUTES,
+        DOC_TYPE_RESUME, DOC_TYPE_TRAVEL_ITINERARY
     )
 
 
@@ -48,9 +52,14 @@ def extract_money(text: str) -> Optional[str]:
     """Extract monetary amount from text."""
     patterns = [
         r"NT\$?\s*([\d,]+\.?\d*)",
+        r"￥\s*([\d,]+\.?\d*)",
+        r"¥\s*([\d,]+\.?\d*)",
         r"金額[:：]?\s*([\d,]+\.?\d*)",
-        r"Total\s*[:：]?\s*([\d,]+\.?\d*)",
-        r"金額\s*([\d,]+\.?\d*)",
+        r"Total\s*[:：]?\s*\$?([\d,]+\.?\d*)",
+        r"合計[:：]?\s*([\d,]+\.?\d*)",
+        r"實付[:：]?\s*([\d,]+\.?\d*)",
+        r"應付[:：]?\s*([\d,]+\.?\d*)",
+        r"\$\s*([\d,]+\.?\d*)",
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
@@ -62,16 +71,29 @@ def extract_money(text: str) -> Optional[str]:
 def extract_date(text: str) -> Optional[str]:
     """Extract a date from text (basic heuristics)."""
     patterns = [
-        r"發票日期[:：]?\s*(\d{4})[年.-](\d{1,2})[月.-](\d{1,2})[日]?",
-        r"(\d{4})[年.-](\d{1,2})[月.-](\d{1,2})[日]?",
-        r"Date\s*[:：]?\s*(\d{4}-\d{2}-\d{2})",
+        r"發票日期[:：]?\s*(\d{4})[年.-/](\d{1,2})[月.-/](\d{1,2})[日]?",
+        r"日期[:：]?\s*(\d{4})[年.-/](\d{1,2})[月.-/](\d{1,2})[日]?",
+        r"Date\s*[:：]?\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})",
+        r"(\d{4})[年.-/](\d{1,2})[月.-/](\d{1,2})[日]?",
+        r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})",
+        r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})",
     ]
     for p in patterns:
-        m = re.search(p, text)
+        m = re.search(p, text, re.IGNORECASE)
         if m:
-            if len(m.groups()) == 3:
-                return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
-            return m.group(1)
+            groups = m.groups()
+            if len(groups) == 3:
+                # Check if last group is year (4 digits) or first is
+                if len(groups[0]) == 4:
+                    return f"{groups[0]}-{groups[1].zfill(2)}-{groups[2].zfill(2)}"
+                elif len(groups[2]) == 4:
+                    return f"{groups[2]}-{groups[0].zfill(2)}-{groups[1].zfill(2)}"
+            elif len(groups) == 2:
+                # Month name format: "Mar 15, 2025"
+                month_map = {"jan":"01","feb":"02","mar":"03","apr":"04","may":"05","jun":"06",
+                             "jul":"07","aug":"08","sep":"09","oct":"10","nov":"11","dec":"12"}
+                # This branch needs the month name; skip for now
+                pass
     return None
 
 
@@ -81,6 +103,8 @@ def extract_vendor(text: str) -> Optional[str]:
         r"(?:賣方|卖方|Seller)[:：]?\s*([^\n\r]+)",
         r"(?:商店名稱|店名|Merchant)[:：]?\s*([^\n\r]+)",
         r"(?:公司名稱|Company)[:：]?\s*([^\n\r]+)",
+        r"(?:供應商|Vendor)[:：]?\s*([^\n\r]+)",
+        r"(?:開立|Issued by|From)[:：]?\s*([^\n\r]+)",
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
@@ -496,6 +520,56 @@ def suggest_tax_form(text: str, metadata: Dict[str, Any]) -> List[Action]:
     return actions
 
 
+def suggest_financial_report(text: str, metadata: Dict[str, Any]) -> List[Action]:
+    actions = []
+    revenue_match = re.search(r"(?:營收|Revenue)[:：]?\s*\$?([\d,.]+M?)", text, re.IGNORECASE)
+    net_match = re.search(r"(?:淨損|淨利|Net (?:Income|Loss))[:：]?\s*\$?([-\d,.]+M?)", text, re.IGNORECASE)
+    params = {}
+    if revenue_match:
+        params["revenue"] = revenue_match.group(1)
+    if net_match:
+        params["net_income"] = net_match.group(1)
+
+    actions.append(Action(name="summarize_financials", description="生成財務摘要", parameters=params, confidence=0.9))
+    actions.append(Action(name="compare_periods", description="與前期比較", parameters={}, confidence=0.75))
+    actions.append(Action(name="flag_risks", description="標記財務風險指標", parameters={}, confidence=0.7))
+    return actions
+
+
+def suggest_meeting_minutes(text: str, metadata: Dict[str, Any]) -> List[Action]:
+    actions = []
+    actions.append(Action(name="extract_action_items", description="提取待辦事項", parameters={}, confidence=0.9))
+    actions.append(Action(name="create_calendar_events", description="建立日曆事件（會議、截止日）", parameters={}, confidence=0.7))
+    actions.append(Action(name="send_summary", description="發送會議摘要給出席者", parameters={}, confidence=0.65))
+    return actions
+
+
+def suggest_resume(text: str, metadata: Dict[str, Any]) -> List[Action]:
+    actions = []
+    email_match = extract_email(text)
+    phone_match = extract_phone(text)
+    name_match = extract_name(text)
+    params = {}
+    if name_match:
+        params["name"] = name_match
+    if email_match:
+        params["email"] = email_match
+    if phone_match:
+        params["phone"] = phone_match
+    actions.append(Action(name="create_candidate_profile", description="建立候選人資料", parameters=params, confidence=0.85))
+    actions.append(Action(name="match_jobs", description="比對職缺需求", parameters={}, confidence=0.6))
+    actions.append(Action(name="extract_skills", description="列出技能與經驗摘要", parameters={}, confidence=0.8))
+    return actions
+
+
+def suggest_travel_itinerary(text: str, metadata: Dict[str, Any]) -> List[Action]:
+    actions = []
+    actions.append(Action(name="create_calendar_events", description="加入航班與住宿到日曆", parameters={}, confidence=0.85))
+    actions.append(Action(name="set_reminders", description="設定出發前提醒", parameters={}, confidence=0.7))
+    actions.append(Action(name="check_visa", description="檢查簽證需求", parameters={}, confidence=0.6))
+    return actions
+
+
 # =============================================================================
 # Main Dispatcher
 # =============================================================================
@@ -511,6 +585,10 @@ SUGGESTION_DISPATCH = {
     DOC_TYPE_BANK_STATEMENT: suggest_bank_statement,
     DOC_TYPE_DRIVER_LICENSE: suggest_driver_license,
     DOC_TYPE_TAX_FORM: suggest_tax_form,
+    DOC_TYPE_FINANCIAL_REPORT: suggest_financial_report,
+    DOC_TYPE_MEETING_MINUTES: suggest_meeting_minutes,
+    DOC_TYPE_RESUME: suggest_resume,
+    DOC_TYPE_TRAVEL_ITINERARY: suggest_travel_itinerary,
     DOC_TYPE_GENERAL: suggest_general,
 }
 

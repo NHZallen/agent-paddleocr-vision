@@ -18,15 +18,41 @@ import argparse
 import json
 import os
 import sys
+import time
+import csv
+import io
 import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add scripts directory to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ocr_engine import parse_document  # our OCR wrapper, will support multi-backend later
+
+# =============================================================================
+# Retry wrapper
+# =============================================================================
+
+def parse_document_with_retry(file_path=None, file_url=None, file_type=None, max_retries=2):
+    """Call parse_document with retry on 5xx errors."""
+    last_err = None
+    for attempt in range(max_retries + 1):
+        try:
+            return parse_document(file_path=file_path, file_url=file_url, file_type=file_type)
+        except Exception as e:
+            last_err = e
+            err_str = str(e)
+            if "500" in err_str or "502" in err_str or "503" in err_str or "timeout" in err_str.lower():
+                if attempt < max_retries:
+                    wait = 2 ** attempt
+                    print(f"Retry {attempt+1}/{max_retries} after {wait}s: {err_str[:80]}", file=sys.stderr)
+                    time.sleep(wait)
+                    continue
+            raise
+    raise last_err
 from classify import classify
 from actions import suggest_actions, actions_to_dict
 from templates import render_agent_prompt
@@ -49,6 +75,76 @@ def error_response(code: str, message: str) -> Dict[str, Any]:
     }
 
 
+def format_pretty(result: Dict[str, Any]) -> str:
+    """Format result as a pretty human-readable summary."""
+    lines = []
+    lines.append("=" * 60)
+    lines.append("  Agent Vision — Document Analysis Result")
+    lines.append("=" * 60)
+
+    if not result.get("ok"):
+        lines.append(f"  ERROR: {result.get('error', {}).get('message', 'Unknown')}")
+        lines.append("=" * 60)
+        return "\n".join(lines)
+
+    lines.append(f"  Type:       {result.get('document_type', '?')}")
+    lines.append(f"  Confidence: {result.get('confidence', 0):.0%}")
+    lines.append(f"  Pages:      {result.get('metadata', {}).get('pages', '?')}")
+    lines.append(f"  Backend:    {result.get('metadata', {}).get('backend', '?')}")
+    lines.append("-" * 60)
+
+    # Text preview (first 300 chars)
+    text = result.get("text", "")
+    if text:
+        preview = text[:300].replace("\n", " ")
+        if len(text) > 300:
+            preview += "..."
+        lines.append(f"  Text: {preview}")
+        lines.append("-" * 60)
+
+    # Suggested actions
+    actions = result.get("suggested_actions", [])
+    if actions:
+        lines.append("  Suggested Actions:")
+        for i, a in enumerate(actions[:5], 1):
+            params_str = ""
+            if a.get("parameters"):
+                params_str = " | " + ", ".join(f"{k}={v}" for k, v in a["parameters"].items() if v)
+            lines.append(f"    {i}. [{a.get('confidence', 0):.0%}] {a.get('description', a.get('action', '?'))}{params_str}")
+        lines.append("-" * 60)
+
+    # Top action
+    top = result.get("top_action")
+    if top:
+        lines.append(f"  Top Action: {top}")
+
+    # Searchable PDF
+    pdf = result.get("searchable_pdf")
+    if pdf:
+        lines.append(f"  Searchable PDF: {pdf}")
+
+    lines.append("=" * 60)
+    return "\n".join(lines)
+
+
+def results_to_csv(results: List[Dict[str, Any]]) -> str:
+    """Convert list of results to CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["file", "type", "confidence", "top_action", "text_preview", "error"])
+    for r in results:
+        src = r.get("metadata", {}).get("source", "?")
+        writer.writerow([
+            src,
+            r.get("document_type", ""),
+            f"{r.get('confidence', 0):.2f}",
+            r.get("top_action", ""),
+            (r.get("text", "") or "")[:100].replace("\n", " "),
+            r.get("error", {}).get("message", "") if not r.get("ok") else "",
+        ])
+    return output.getvalue()
+
+
 def process_single_file(
     file_path: Optional[str] = None,
     file_url: Optional[str] = None,
@@ -64,9 +160,9 @@ def process_single_file(
     if not file_path and not file_url:
         return error_response("INPUT_ERROR", "file_path or file_url required")
 
-    # OCR
+    # OCR (with retry on 5xx/timeout)
     try:
-        ocr_result = parse_document(file_path=file_path, file_url=file_url, file_type=file_type)
+        ocr_result = parse_document_with_retry(file_path=file_path, file_url=file_url, file_type=file_type)
     except Exception as e:
         return error_response("OCR_ERROR", f"OCR failed: {e}")
 
@@ -129,6 +225,8 @@ def process_single_file(
         with open(output_path, "w", encoding="utf-8") as f:
             if output_format == "text":
                 f.write(text)
+            elif output_format == "csv":
+                f.write(results_to_csv([response]))
             else:
                 json.dump(response, f, ensure_ascii=False, indent=2)
         print(f"Saved: {output_path}", file=sys.stderr)
@@ -158,67 +256,74 @@ def process_single_file(
 # =============================================================================
 
 def batch_mode(args):
-    """Process all files in a directory."""
+    """Process all files in a directory (parallel)."""
     batch_dir = Path(args.batch_dir)
     if not batch_dir.exists():
         print(f"Error: batch directory not found: {batch_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # Determine supported file extensions
     exts = {".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".webp"}
-
-    # Gather files (non-recursive for now)
     files = [p for p in batch_dir.iterdir() if p.is_file() and p.suffix.lower() in exts]
     if not files:
         print(f"No supported files found in {batch_dir} (extensions: {', '.join(exts)})", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Batch processing {len(files)} files...", file=sys.stderr)
+    workers = max(1, args.workers or 3)
+    print(f"Batch processing {len(files)} files with {workers} workers...", file=sys.stderr)
 
     results = []
-    for file_path in files:
-        print(f"Processing: {file_path.name}...", file=sys.stderr)
-        res = process_single_file(
-            file_path=str(file_path),
-            file_type=0 if file_path.suffix.lower() == ".pdf" else 1,
-            output_format="json",
-            output_path=None,
-        )
-        res["source_file"] = file_path.name
-        results.append(res)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        future_map = {
+            pool.submit(
+                process_single_file,
+                file_path=str(fp),
+                file_type=0 if fp.suffix.lower() == ".pdf" else 1,
+                output_format="json",
+                output_path=None,
+            ): fp for fp in files
+        }
+        for fut in as_completed(future_map):
+            fp = future_map[fut]
+            try:
+                res = fut.result()
+            except Exception as e:
+                res = error_response("BATCH_ERROR", str(e))
+            res["source_file"] = fp.name
+            if "metadata" not in res:
+                res["metadata"] = {}
+            res["metadata"]["source"] = str(fp)
+            results.append(res)
 
-    # Output summary
     summary = {
         "batch_summary": {
             "total": len(results),
-            "success": sum(1 for r in results if r["ok"]),
-            "failed": sum(1 for r in results if not r["ok"]),
+            "success": sum(1 for r in results if r.get("ok")),
+            "failed": sum(1 for r in results if not r.get("ok")),
             "by_type": {},
         },
         "results": results,
     }
 
-    # Count types
     for r in results:
-        if r["ok"]:
-            dotype = r["document_type"]
+        if r.get("ok"):
+            dotype = r.get("document_type", "unknown")
             summary["batch_summary"]["by_type"][dotype] = summary["batch_summary"]["by_type"].get(dotype, 0) + 1
 
-    # Write summary to stdout (always JSON)
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    # Output summary
+    if args.format == "csv":
+        print(results_to_csv(results))
+    else:
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
 
-    # Optionally write individual outputs to output-dir
+    # Optional per-file JSON
     if args.output_dir:
         out_dir = Path(args.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         for r in results:
-            if r["ok"]:
-                # Use safe filename
-                safe_name = Path(r["source_file"]).stem + ".json"
-                out_path = out_dir / safe_name
-                with open(out_path, "w", encoding="utf-8") as f:
-                    json.dump(r, f, ensure_ascii=False, indent=2)
-
+            safe_name = Path(r.get("source_file", "result")).stem + ".json"
+            out_path = out_dir / safe_name
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(r, f, ensure_ascii=False, indent=2)
         print(f"Individual results written to: {out_dir}", file=sys.stderr)
 
 
@@ -229,12 +334,13 @@ def main():
     parser.add_argument("--file-type", type=int, choices=[0, 1], help="0=PDF, 1=image (override)")
     parser.add_argument("--output", help="Output file path (single file mode)")
     parser.add_argument("--stdout", action="store_true", help="Print JSON to stdout (single file)")
-    parser.add_argument("--format", choices=["json", "text", "pretty"], default="pretty", help="Output format (single file)")
+    parser.add_argument("--format", choices=["json", "text", "pretty", "csv"], default="pretty", help="Output format (single/batch)")
     parser.add_argument("--pretty", action="store_true", help="Pretty print JSON (single file)")
 
     # Batch mode
     parser.add_argument("--batch-dir", help="Directory containing documents to process in batch")
     parser.add_argument("--output-dir", help="Output directory for batch results (one JSON per file)")
+    parser.add_argument("--workers", type=int, default=3, help="Parallel workers for batch mode")
 
     # Searchable PDF
     parser.add_argument("--make-searchable-pdf", action="store_true", help="Generate searchable PDF (requires reportlab, pypdf, pillow)")
@@ -265,7 +371,9 @@ def main():
         if args.format == "text":
             print(response.get("text", ""))
         elif args.format == "pretty" or args.pretty:
-            print(json.dumps(response, ensure_ascii=False, indent=2))
+            print(format_pretty(response))
+        elif args.format == "csv":
+            print(results_to_csv([response]))
         else:
             print(json.dumps(response, ensure_ascii=False))
 
