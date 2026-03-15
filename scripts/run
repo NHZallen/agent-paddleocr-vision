@@ -1,0 +1,3 @@
+#!/bin/sh
+# Agent Vision tool entrypoint
+exec python3 "$(dirname "$0")/doc_vision.py" "$@"
