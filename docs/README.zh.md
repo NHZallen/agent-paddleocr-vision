@@ -1,142 +1,278 @@
-# Agent PaddleOCR Vision —— 用 PaddleOCR 讓 AI 看懂文件
+# Agent PaddleOCR Vision —— 基於 PaddleOCR 的文件理解與agent行動
 
-**把文件變成 AI 的行動指引。** 僅支援 PaddleOCR 雲端 API，上傳任何圖片或 PDF，自動判斷文件類型，告訴 AI 能做什麼、該怎麼處理。
+**將文件轉換為 AI agent 可執行的行動指引。** 本技能僅支援 PaddleOCR 雲端 API，自動分類文件類型並提供結構化的建議參數與提示詞。
 
-## ✨ 有哪些功能？
+## 功能概述
 
-- ✅ **PaddleOCR 雲端 OCR**：高精度，支援表格、公式、多語言
-- ✅ **11 種文件自動分類**：發票、名片、收據、表格、合約、身分證、護照、銀行對帳單、駕照、稅表、一般文件
-- ✅ **行動建議引擎**：提取關鍵欄位 + 生成可用按鈕/指令
-- ✅ **批量處理**：一次掃描整個資料夾
-- ✅ **可搜尋 PDF 輸出**：為掃描檔加上可複製選取的文字層（真正 OCR 而非圖片）
-- ✅ **Agent 友好**：輸出 `agent_prompt` 可直接丟給 LLM 使用
+- 使用 PaddleOCR 雲端 API 進行文字辨識（支援表格、公式、多語言）
+- 自動分類 11 類文件：發票、名片、收據、表格、合約、身分證、護照、銀行對帳單、駕照、稅表、一般文件
+- 為每類文件生成建議行動（create_expense、add_contact、summarize 等）
+- 批次處理整個資料夾
+- 產生可搜尋 PDF（根據 bounding box 嵌入文字層，支援文字選取與搜尋）
+- 輸出 `agent_prompt`，可直接用於 LLM system message
 
-## 📦 安裝步驟
+## 安裝步驟
 
-### 1. 系統依賴（Linux/macOS）
+### 系統依賴
+
+Ubuntu/Debian：
 
 ```bash
-# Ubuntu/Debian
 sudo apt-get update
 sudo apt-get install -y python3 python3-pip poppler-utils
+```
 
-# macOS
+macOS：
+
+```bash
 brew install python poppler
 ```
 
-### 2. Python 套件
+### Python 套件
 
 ```bash
 cd skills/agent-paddleocr-vision
 pip3 install -r scripts/requirements.txt
 ```
 
-### 3. PaddleOCR API 設定
+### PaddleOCR API 設定
 
-你需要 PaddleOCR 的 API 端點與 Token：
+必須設定兩個環境變數：
 
 ```bash
 export PADDLEOCR_DOC_PARSING_API_URL=https://your-api.paddleocr.com/layout-parsing
-export PADDLEOCR_ACCESS_TOKEN=your_token_string
+export PADDLEOCR_ACCESS_TOKEN=your_access_token
 ```
 
-或在 OpenClaw 設定中，為 `agent-paddleocr-vision` 技能加入環境變數。
+*注意：API URL 必须以 `/layout-parsing` 结尾。*
 
-## 🚀 快速開始
+## 使用方式
 
 ### 單一文件
 
 ```bash
-# 處理發票（雲端 OCR）
-python3 scripts/doc_vision.py --file-path ./發票.jpg --pretty
+# 基本用法：處理圖片或 PDF，輸出 pretty JSON
+python3 scripts/doc_vision.py --file-path ./invoice.jpg --pretty
 
-# 並產生可搜尋版 PDF
-python3 scripts/doc_vision.py --file-path ./文件.pdf --make-searchable-pdf --output result.json
+# 同時生成可搜尋 PDF
+python3 scripts/doc_vision.py --file-path ./document.pdf --make-searchable-pdf --output result.json
 
-# 只取得純文字
+# 只要純文字
 python3 scripts/doc_vision.py --file-path ./doc.pdf --format text
 ```
 
 ### 批次處理
 
 ```bash
-python3 scripts/doc_vision.py --batch-dir ./待處理 --output-dir ./結果
+# 處理指定資料夾內所有支援的檔案（.pdf, .png, .jpg, .jpeg, .bmp, .tiff, .webp）
+python3 scripts/doc_vision.py --batch-dir ./inbox --output-dir ./out
 ```
+
+批次結果：
+- 會輸出一個總結 JSON（包含總筆數、成功/失敗數、各類型統計）
+- 每個檔案都會在 `--output-dir` 產生獨立的 JSON 檔
 
 ### Docker
 
 ```bash
 docker build -t agent-paddleocr-vision:latest .
-docker run --rm -v $(pwd)/docs:/data \
+docker run --rm -v $(pwd)/data:/data \
   -e PADDLEOCR_DOC_PARSING_API_URL -e PADDLEOCR_ACCESS_TOKEN \
   agent-paddleocr-vision:latest \
   --file-path /data/invoice.jpg --pretty --make-searchable-pdf
 ```
 
-## 📤 輸出範例
+## 輸出格式
 
 ```json
 {
   "ok": true,
   "document_type": "invoice",
   "confidence": 0.94,
-  "text": "發票號碼: AB12345678\n統一編號: 12345678\n金額: NT$ 1,200\n...",
-  "pruned_result": { ...原始 PaddleOCR 回傳... },
+  "text": "完整辨識的文字內容（跨頁以雙換行分隔）",
+  "pruned_result": { ...原始 PaddleOCR API 回傳的結構資料... },
   "suggested_actions": [
     {
       "action": "create_expense",
       "description": "將此發票金額記入帳務系統",
-      "parameters": { "amount": "1200", "vendor": "某某科技", "date": "2025-03-15" },
+      "parameters": {
+        "amount": "1200",
+        "vendor": "某某科技有限公司",
+        "date": "2025-03-15",
+        "tax_id": "12345678"
+      },
       "confidence": 0.92
     },
-    { "action": "archive", "description": "將此發票歸檔", "parameters": {}, "confidence": 0.96 },
-    { "action": "tax_report", "description": "加入本期稅務報表", "parameters": {}, "confidence": 0.78 }
+    {
+      "action": "archive",
+      "description": "將此發票歸檔至文件庫",
+      "parameters": {},
+      "confidence": 0.96
+    },
+    {
+      "action": "tax_report",
+      "description": "加入本期稅務報表",
+      "parameters": { "tax_period": "2025-03" },
+      "confidence": 0.78
+    }
   ],
-  "agent_prompt": "You are a financial assistant. The user has provided an invoice...",
+  "agent_prompt": "You are a financial assistant. The user has provided an invoice.\nExtracted data:\n- Amount: 1200\n- Vendor: 某某科技有限公司\n...\nPossible actions: create_expense, archive, tax_report\nRespond appropriately based on user's goal.",
   "top_action": "create_expense",
-  "metadata": { "pages": 1, "backend": "paddleocr", "source": "/path/to/發票.jpg" },
-  "searchable_pdf": "/path/to/發票.searchable.pdf"
+  "metadata": {
+    "pages": 1,
+    "backend": "paddleocr",
+    "source": "/absolute/path/to/invoice.jpg"
+  },
+  "searchable_pdf": "/absolute/path/to/invoice.searchable.pdf"
 }
 ```
 
-## 🤖 Agent 整合
+### 欄位說明
 
-- 使用 `agent_prompt` 作為 system message
-- 或用 `suggested_actions` 產生按鈕讓使用者選擇
+| 欄位 | 說明 |
+|------|------|
+| ok | 處理是否成功 |
+| document_type | 文件類型（invoice、business_card…） |
+| confidence | 分類信心指數 (0–1) |
+| text | 從所有頁面萃取的全部文字（Markdown 格式） |
+| pruned_result | 原始 API 回應，包含每頁的 layoutParsingResults，可用於進階處理 |
+| suggested_actions | 建議行動列表，已依信心排序 |
+| agent_prompt | 量身打造的 prompt，可直接傳給 LLM |
+| top_action | 信心最高的行動名稱 |
+| metadata | 包含頁數、使用的後端、來源路徑等 |
+| searchable_pdf | 可搜尋 PDF 的路徑（僅在 `--make-searchable-pdf` 時出現） |
 
-## 🔍 可搜尋 PDF
+## Agent 整合建議
 
-`--make-searchable-pdf` 會根據 PaddleOCR 回傳的 bbox 座標，在對應位置加入可選取的文字層。需 `pdf2image` + `poppler` 與 `reportlab`、`pypdf`。
+1. **直接使用 agent_prompt**：將 `agent_prompt` 作為 system message 或使用者的前置提示，LLM 會根據其中 extracted data 與 actions 產生合適的回應。
+2. **提供互動按鈕**：將 `suggested_actions` 轉換為快速回覆按鈕，讓使用者點選執行。
+3. **自動執行**：在接受使用者確認後，自動呼叫對應的函數（如 `create_expense` 並傳入 `parameters`）。
 
-## 🛠️ 文件類型一覽
+範例（Node.js 風格 pseudo-code）：
 
-| 類型 | 建議動作 |
-|------|----------|
-| 發票 | create_expense, archive, tax_report |
-| 名片 | add_contact, save_vcard |
-| 收據 | create_expense, split_bill |
-| 表格 | export_csv, analyze_data |
-| 合約 | summarize, extract_dates, flag_obligations |
-| 身分證 | extract_id_info, verify_age |
-| 護照 | store_passport_info, check_validity |
-| 銀行對帳單 | categorize_transactions, generate_report |
-| 駕照 | store_license_info, check_expiry |
-| 稅表 | summarize_tax, suggest_deductions |
-| 一般 | summarize, translate, search_keywords |
+```javascript
+const result = await callAgentVision({ 'file-path': '/path/to/doc.pdf' });
+if (result.document_type === 'invoice') {
+  for (const act of result.suggested_actions) {
+    showButton(act.description, { action: act.action, params: act.parameters });
+  }
+}
+```
 
-## 🔧 常見問題
+## 可搜尋 PDF 詳細說明
 
-- **API 403/404**：確認 `PADDLEOCR_DOC_PARSING_API_URL` 以 `/layout-parsing` 結尾，且 Token 有效。
-- **Searchable PDF 失敗**：檢查 `reportlab`、`pypdf`、`pdf2image` 及系統 `poppler` 是否安裝。
-- **辨識率不佳**：確認輸入文件清晰、語言正確（PaddleOCR 自動偵測）。
+`--make-searchable-pdf` 會產生一個新的 PDF，其中包含可選取的、可搜尋的文字層。這是如何實現的：
 
-## 📚 完整文件
+1. 將輸入 PDF 的每一頁轉為 200 DPI 的點陣圖（使用 `pdf2image` 與系統的 `poppler`）
+2. 根據 PaddleOCR 回傳的 `layoutParsingResults[].prunedResult` 中的 fragment `bbox` 座標，在對應位置添加「不可見」的文字（使用 `reportlab`）
+3. 圖片維持為背景，文字層疊加在上方；搜尋時 PDF 閱讀器會匹配嵌入的文字
 
-其他語言版本：
-- English: `docs/README.en.md`
-- Español: `docs/README.es.md`
-- العربية: `docs/README.ar.md`
+若 API 未回傳任何 bounding box 資料，則退化的版本會將整頁文字疊加在頁面底部，仍可搜尋但位置不精確。
 
-## License
+### 必要軟體
 
-MIT-0
+- 系統：`poppler-utils`（Ubuntu: `apt-get install poppler-utils`；macOS: `brew install poppler`）
+- Python: `reportlab`、`pypdf`、`pillow`、`pdf2image`
+
+## 文件類型對照表
+
+| 類型 | 辨識關鍵字/結構 | 建議行動 |
+|------|----------------|----------|
+| 發票 (invoice) | 發票號碼、金額、統一編號、稅額、賣方/买方 | create_expense、archive、tax_report |
+| 名片 (business_card) | 姓名、電話、Email、公司職稱 | add_contact、save_vcard |
+| 收據 (receipt) | 商店名稱、實付金額、交易日期 | create_expense、split_bill |
+| 表格 (table) | 表格線條、多欄對齊、表頭 | export_csv、analyze_data |
+| 合約 (contract) | 條款編號、簽署人、簽名、生效日 | summarize、extract_dates、flag_obligations |
+| 身分證 (id_card) | 身分證字號、姓名、出生日期、性別 | extract_id_info、verify_age |
+| 護照 (passport) | 護照號碼、國籍、簽發日、有效期 | store_passport_info、check_validity |
+| 銀行對帳單 (bank_statement) | 帳戶號碼、帳單期間、餘額、交易明細 | categorize_transactions、generate_report |
+| 駕照 (driver_license) | 駕照編號、車類別、有效期、地址 | store_license_info、check_expiry |
+| 稅表 (tax_form) | 稅年度、總收入、應納稅額、扣除額 | summarize_tax、suggest_deductions |
+| 一般 (general) | 無特定模式 | summarize、translate、search_keywords |
+
+## 常見問題
+
+### PaddleOCR API 回傳 403 或 404
+
+檢查：
+- `PADDLEOCR_DOC_PARSING_API_URL` 是否正確，是否以 `/layout-parsing` 結尾
+- `PADDLEOCR_ACCESS_TOKEN` 是否有效且未過期
+- 網路是否可存取該 API 端點
+
+### 可搜尋 PDF 無法生成
+
+確認已安裝：
+```bash
+pip3 show reportlab pypdf pdf2image
+```
+並確認系統有 `poppler`：
+```bash
+which pdftoppm  # 應指向 /usr/bin/pdftoppm 或其他
+```
+
+若仍失敗，請查看 `stderr` 的錯誤訊息，常見原因：
+- 原始 PDF 無法轉換（檔案損壞或加密）
+- bounding box 資料缺失（仍會生成，但文字位置不精確）
+
+### 辨識率不佳
+
+- 確認文件清晰、無模糊、無反光
+- 如果是中文，PaddleOCR 預設會辨識；若為其他語言，API 通常會自動偵測
+- 調整文件 DPI（建議 300 DPI 以上）
+
+### Batch 模式執行速度慢
+
+- 可考慮平行處理（例如 GNU parallel）
+- 若使用雲端 API，注意速率限制；可增加 `--timeout` 或分批上傳
+
+## 架構說明
+
+```
+doc_vision.py  →  主入口
+   ├─ ocr_engine.py      → 呼叫 PaddleOCR API，回傳 text + pruned_result
+   ├─ classify.py        → 根據文字內容判斷文件類型
+   ├─ actions.py         → 提取參數並產生建議行動列表
+   ├─ templates/         → Jinja2 模板，生成 agent_prompt
+   └─ make_searchable_pdf.py → 使用 bbox 生成可搜尋 PDF
+```
+
+## 開發新文件類型
+
+1. 在 `scripts/classify.py` 加入匹配函數與常數：
+   ```python
+   DOC_TYPE_MY_TYPE = "my_type"
+   def match_my_type(text: str) -> float:
+       patterns = [r"關鍵字1", r"關鍵字2"]
+       return sum(bool(re.search(p, text, re.IGNORECASE)) for p in patterns) / len(patterns)
+   ```
+   並在 `classify()` 的 `scores` 字典加入 `DOC_TYPE_MY_TYPE: match_my_type(text)`。
+
+2. 在 `scripts/actions.py` 加入生成函數：
+   ```python
+   def suggest_my_type(text: str, metadata) -> List[Action]:
+       # 提取 param，返回 Action list
+       ...
+   SUGGESTION_DISPATCH[DOC_TYPE_MY_TYPE] = suggest_my_type
+   ```
+
+3. 在 `templates/` 新增 `my_type.md`（Jinja2 模板），內容為給 agent 的指示與可參數。
+
+4. 在 `docs/README.zh.md` 的「文件類型對照表」新增列。
+
+## 效能與資源
+
+- 單次請求通常耗時 2–15 秒（取決於文件頁數與 API 速度）
+- 記憶體使用：處理 PDF 時可能達到文件大小 × 2–3 倍
+- Batch 模式無內建並行，如需加速可自行多行程包裝
+
+## 授權
+
+MIT-0（非常寬鬆，可自由使用、修改、發行）
+
+## 版本歷史
+
+- v0.1.0 — 初始版本（2025-03-15）
+
+---
+
+**Problems?** Check `stderr` output or open an issue on GitHub.
