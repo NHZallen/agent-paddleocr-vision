@@ -1,6 +1,6 @@
 ---
-name: agent-vision
-description: OCR as agent's eyes - structured document understanding with actions
+name: agent-ocr-vision
+description: Multi-OCR document understanding for AI agents
 metadata:
   openclaw:
     requires:
@@ -12,7 +12,7 @@ metadata:
         - tesseract  # optional, if user wants offline OCR
     primaryEnv: PADDLEOCR_ACCESS_TOKEN
     emoji: "👁️"
-    homepage: https://github.com/openclaw/skills/tree/main/agent-vision
+    homepage: https://github.com/NHZallen/agent-ocr-vision
 ---
 
 # Agent Vision Skill
