@@ -1,54 +1,56 @@
-# Agent Vision — OCR con Acciones para Agentes
+# Agent PaddleOCR Vision — OCR con Acciones (solo PaddleOCR)
 
-**Convierte documentos en instrucciones accionables para tu IA.** Detecta automáticamente el tipo de documento y proporciona sugerencias listas para usar.
+Convierte documentos en instrucciones accionables para tu IA. Usa únicamente PaddleOCR en la nube.
 
-## 🌟 Características
+## Características
 
-- Múltiples motores OCR: PaddleOCR en la nube o Tesseract offline (gratuito)
-- 11 tipos de documentos: facturas, tarjetas de visita, recibos, tablas, contratos, DNI, pasaportes, estados de cuenta, licencias de conducir, formularios fiscales, general
-- Generación de PDF buscable con capa de texto real
+- OCR con PaddleOCR (alta precisión)
+- 11 tipos de documentos
+- Generación de PDF buscable
 - Procesamiento por lotes
 - Salida `agent_prompt` lista para LLM
 
-## 🚀 Inicio Rápido
+## Instalación
 
 ```bash
-# Instalar dependencias
 pip3 install -r scripts/requirements.txt
-apt-get install poppler-utils tesseract-ocr tesseract-ocr-chi-sim
+# Sistema: poppler-utils
+```
 
-# Configurar OCR (nube o local)
+## Configuración
+
+```bash
 export PADDLEOCR_DOC_PARSING_API_URL=https://tu-api.com/layout-parsing
 export PADDLEOCR_ACCESS_TOKEN=tu_token
-# o
-export OCR_BACKEND=tesseract
-export TESSERACT_LANG=chi_sim+eng
-
-# Ejecutar
-python3 scripts/doc_vision.py --file-path factura.jpg --pretty
 ```
 
-## 📤 Ejemplo de Salida JSON
+## Uso
 
-```json
-{
-  "ok": true,
-  "document_type": "invoice",
-  "suggested_actions": [
-    { "action": "create_expense", "description": "Registrar gasto", "parameters": { "amount": "1200" } }
-  ],
-  "agent_prompt": "You are a financial assistant..."
-}
+```bash
+python3 scripts/doc_vision.py --file-path factura.jpg --pretty --make-searchable-pdf
+python3 scripts/doc_vision.py --batch-dir ./entrada --output-dir ./salida
 ```
 
-## 🔧 Troubleshooting
+## Tipos de Documentos
 
-- `ModuleNotFoundError`: ejecute `pip3 install -r scripts/requirements.txt`
-- Error 403 PaddleOCR: verifique URL y token
-- PDF buscable no generado: instale `reportlab`, `pypdf`, `poppler-utils`
+| Tipo | Acciones |
+|------|----------|
+| Factura | create_expense, archive, tax_report |
+| Tarjeta de visita | add_contact, save_vcard |
+| Recibo | create_expense, split_bill |
+| Tabla | export_csv, analyze_data |
+| Contrato | summarize, extract_dates, flag_obligations |
+| DNI | extract_id_info, verify_age |
+| Pasaporte | store_passport_info, check_validity |
+| Estado de cuenta | categorize_transactions, generate_report |
+| Licencia de conducir | store_license_info, check_expiry |
+| Formulario fiscal | summarize_tax, suggest_deductions |
+| General | summarize, translate, search_keywords |
 
-## 📚 Documentación Completa
+## PDF Buscable
 
-Consulte [SKILL.md](SKILL.md) para más detalles.
+`--make-searchable-pdf` crea una capa de texto seleccionable usando bounding boxes de PaddleOCR.
 
-**Hecho para OpenClaw.**
+## Licencia
+
+MIT-0

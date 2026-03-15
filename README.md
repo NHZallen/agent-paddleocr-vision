@@ -1,6 +1,6 @@
-# Agent OCR Vision
+# Agent PaddleOCR Vision
 
-**Turn documents into actionable instructions for your AI agent.** Supports multiple OCR backends (PaddleOCR cloud, Tesseract offline) with automatic document classification and action suggestion.
+**Turn documents into actionable instructions for your AI agent.** Powered by PaddleOCR cloud API with automatic document classification and action suggestion.
 
 > 🌐 多語言文件：[中文](docs/README.zh.md) · [English](docs/README.en.md) · [Español](docs/README.es.md) · [العربية](docs/README.ar.md)
 

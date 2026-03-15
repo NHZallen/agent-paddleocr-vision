@@ -1,49 +1,56 @@
-# Agent Vision — OCR مع إجراءات للعامل
+# Agent PaddleOCR Vision — OCR مع إجراءات (PaddleOCR فقط)
 
-**حوّل الوثائق إلى تعليمات قابلة للتنفيذ للذكاء الاصطناعي.** اكتشف نوع الوثيقة تلقائيًا وقدم قائمة بالإجراءات المقترحة.
+حوّل الوثائق إلى تعليمات قابلة للتنفيذ للذكاء الاصطناعي. يعتمد فقط على PaddleOCR السحابي.
 
-## ✨ الميزات
+## الميزات
 
-- دعم محركات OCR متعددة: PaddleOCR سحابي أو Tesseract محلي (مجاني)
-- 11 نوع مستند: الفواتير، بطاقات العمل، الإيصالات، الجداول، العقود، بطاقات الهوية، جوازات السفر، كشوف الحساب، رخص القيادة، النماذج الضريبية، عام
-- إنشاء PDF قابلة للبحث مع طبقة نص حقيقية
-- معالجة دفعات (Batch)
-- مخرجات جاهزة للعامل ( `agent_prompt` )
+- دعم PaddleOCR السحابي
+- 11 نوع مستند
+- إنشاء PDF قابلة للبحث
+- معالجة دفعات
+- مخرجات agent_prompt جاهزة للLLM
 
-## 🚀 البدء السريع
+## التثبيت
 
 ```bash
-# تثبيت المتطلبات
 pip3 install -r scripts/requirements.txt
-apt-get install poppler-utils tesseract-ocr tesseract-ocr-chi-sim
-
-# ضبط البيئة
-export PADDLEOCR_DOC_PARSING_API_URL=https://...
-export PADDLEOCR_ACCESS_TOKEN=...
-# أو
-export OCR_BACKEND=tesseract
-export TESSERACT_LANG=chi_sim+eng
-
-# التشغيل
-python3 scripts/doc_vision.py --file-path فاتورة.jpg --pretty
+# النظام: poppler-utils
 ```
 
-## 📤 مثال الإخراج
+## الإعداد
 
-النتيجة JSON تحتوي على:
-- `document_type`
-- `suggested_actions`
-- `agent_prompt` (جاهز للLLM)
-- `searchable_pdf` عند استخدام `--make-searchable-pdf`
+```bash
+export PADDLEOCR_DOC_PARSING_API_URL=https://your-api.paddleocr.com/layout-parsing
+export PADDLEOCR_ACCESS_TOKEN=your_token
+```
 
-## 🔧 استكشاف الأخطاء
+## الاستخدام
 
-- إذا ظهر خطأ في استيراد الوحدات: راجع تثبيت المتطلبات.
-- خطأ 403 من PaddleOCR: تحقق من صحة الرابط والتوكن.
-- فشل إنشاء PDF قابلة للبحث: تأكد من تثبيت `reportlab` و `pypdf` و `poppler`.
+```bash
+python3 scripts/doc_vision.py --file-path فاتورة.jpg --pretty --make-searchable-pdf
+python3 scripts/doc_vision.py --batch-dir ./inbox --output-dir ./out
+```
 
-## 📚 الوثائق الكاملة
+## أنواع المستندات
 
-انظر [SKILL.md](SKILL.md) للتفاصيل.
+| النوع | الإجراءات |
+|------|----------|
+| الفاتورة | create_expense, archive, tax_report |
+| بطاقة العمل | add_contact, save_vcard |
+| الإيصال | create_expense, split_bill |
+| الجدول | export_csv, analyze_data |
+| العقد | summarize, extract_dates, flag_obligations |
+| بطاقة الهوية | extract_id_info, verify_age |
+| جواز السفر | store_passport_info, check_validity |
+| كشف الحساب | categorize_transactions, generate_report |
+| رخصة القيادة | store_license_info, check_expiry |
+| النموذج الضريبي | summarize_tax, suggest_deductions |
+| عام | summarize, translate, search_keywords |
 
-**صُنع لـ OpenClaw.**
+## PDF قابل للبحث
+
+يتيح `--make-searchable-pdf` إضافة طبقة نصية قابلة للاختيار باستخدام إحداثيات PaddleOCR.
+
+## الرخصة
+
+MIT-0
