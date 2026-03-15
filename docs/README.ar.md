@@ -13,7 +13,11 @@
 ## نظرة عامة على الميزات
 
 - التعرف البصري على الأحرف (OCR) عبر PaddleOCR السحابي (يدعم الجداول والمعادجات واللغات المتعددة)
-- التصنيف التلقائي لـ 11 نوع مستند: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, general
+- التصنيف التلقائي لـ 15 نوع مستند: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, financial_report, meeting_minutes, resume, travel_itinerary, general
+- إعادة محاولة تلقائية عند أخطاء 5xx/مهلة
+- معالجة دفعات بالتوازي (خيار `--workers`)
+- تصدير CSV (`--format csv`)
+- عرض مُنسَّق للبشر (`--format pretty`)
 - تولد اقتراحات إجراءات لكل نوع (create_expense, add_contact, summarize، إلخ)
 - معالجة دفعات (Batch) لدلائل كاملة
 - توليد PDFs ذات طبقة نصية قابلة للبحث (بناءً على إحداثيات المربعات المحيطة، تدعم تحديد النص والبحث)
@@ -197,6 +201,10 @@ if (result.document_type === 'invoice') {
 | رخصة القيادة (driver_license) | رقم الرخصة، الصف، الانقضاء، العنوان | store_license_info, check_expiry |
 | النموذج الضريبي (tax_form) |年度 الضريبي، إجمالي الدخل، الضريبة المستحقة، الخصومات | summarize_tax, suggest_deductions |
 | عام (general) | لا نمط محدد | summarize, translate, search_keywords |
+| تقرير مالي (financial_report) | الإيرادات، الأرباح، الهوامش | summarize_financials, compare_periods, flag_risks |
+| محضر اجتماع (meeting_minutes) | الحضور، القرارات، المهام | extract_action_items, create_calendar_events, send_summary |
+| السيرة الذاتية (resume) | الاسم، البريد، التعليم، المهارات | create_candidate_profile, match_jobs, extract_skills |
+| خطة سفر (travel_itinerary) | رحلات جوية، فنادق، تواريخ | create_calendar_events, set_reminders, check_visa |
 
 ## استكشاف الأخطاء وإصلاحها
 

@@ -13,7 +13,11 @@
 ## Características generales
 
 - OCR mediante PaddleOCR en la nube (compatible con tablas, fórmulas y múltiples idiomas)
-- Clasificación automática en 11 tipos de documentos: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, general
+- Clasificación automática en 15 tipos: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, financial_report, meeting_minutes, resume, travel_itinerary, general
+- Reintentos automáticos en errores 5xx/timeout
+- Procesamiento paralelo por lotes (bandera `--workers`)
+- Exportación CSV (`--format csv`)
+- Salida legible para humanos (`--format pretty`)
 - Genera sugerencias de acciones para cada tipo (create_expense, add_contact, summarize, etc.)
 - Procesamiento por lotes de directorios completos
 - Generación de PDFs con capa de texto seleccionable (basada en bounding boxes, permite selección y búsqueda)
@@ -197,6 +201,10 @@ Si la API no devuelve bounding boxes, la versión de respaldo superpone el texto
 | Licencia de conducir (driver_license) | número de licencia, clase, vencimiento, dirección | store_license_info, check_expiry |
 | Formulario fiscal (tax_form) | año fiscal, ingreso total, impuesto a pagar, deducciones | summarize_tax, suggest_deductions |
 | General (general) | sin patrón específico | summarize, translate, search_keywords |
+| Informe financiero (financial_report) | ingresos, beneficios, márgenes | summarize_financials, compare_periods, flag_risks |
+| Minutas de reunión (meeting_minutes) | asistentes, decisiones, acciones | extract_action_items, create_calendar_events, send_summary |
+| Currículum (resume) | nombre, email, educación, habilidades | create_candidate_profile, match_jobs, extract_skills |
+| Itinerario de viaje (travel_itinerary) | vuelos, hoteles, fechas | create_calendar_events, set_reminders, check_visa |
 
 ## Solución de problemas
 

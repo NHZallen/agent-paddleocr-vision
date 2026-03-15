@@ -13,11 +13,15 @@
 ## 功能概述
 
 - 使用 PaddleOCR 雲端 API 進行文字辨識（支援表格、公式、多語言）
-- 自動分類 11 類文件：發票、名片、收據、表格、合約、身分證、護照、銀行對帳單、駕照、稅表、一般文件
+- 自動分類 15 類文件：發票、名片、收據、表格、合約、身分證、護照、銀行對帳單、駕照、稅表、財務報告、會議記錄、履歷、旅遊行程、一般文件
 - 為每類文件生成建議行動（create_expense、add_contact、summarize 等）
 - 批次處理整個資料夾
 - 產生可搜尋 PDF（根據 bounding box 嵌入文字層，支援文字選取與搜尋）
 - 輸出 `agent_prompt`，可直接用於 LLM system message
+- API 5xx/timeout 自動重試（指數退避）
+- Batch 並行處理（`--workers` 參數）
+- CSV 匯出（`--format csv`）
+- 美化排版（`--format pretty` 輸出人類可讀格式）
 
 ## 安裝步驟
 
@@ -197,6 +201,10 @@ if (result.document_type === 'invoice') {
 | 駕照 (driver_license) | 駕照編號、車類別、有效期、地址 | store_license_info、check_expiry |
 | 稅表 (tax_form) | 稅年度、總收入、應納稅額、扣除額 | summarize_tax、suggest_deductions |
 | 一般 (general) | 無特定模式 | summarize、translate、search_keywords |
+| 財務報告 (financial_report) | 營收、淨利、毛利率、資產負債 | summarize_financials、compare_periods、flag_risks |
+| 會議記錄 (meeting_minutes) | 出席者、決議、待辦事項 | extract_action_items、create_calendar_events、send_summary |
+| 履歷 (resume) | 姓名、Email、學歷、技能 | create_candidate_profile、match_jobs、extract_skills |
+| 旅遊行程 (travel_itinerary) | 航班、酒店、目的地、日期 | create_calendar_events、set_reminders、check_visa |
 
 ## 常見問題
 
@@ -279,6 +287,7 @@ MIT-0（非常寬鬆，可自由使用、修改、發行）
 
 ## 版本歷史
 
+- v1.1.0 — 新增 4 種文件類型、API 重試、並行 batch、CSV 匯出、美化排版（2025-03-15）
 - v1.0.0 — 初始版本（2025-03-15）
 
 ---

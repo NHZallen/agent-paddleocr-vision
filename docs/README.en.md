@@ -13,7 +13,11 @@
 ## Features Overview
 
 - OCR using PaddleOCR cloud API (supports tables, formulas, multi-language)
-- Automatic classification into 11 document types: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, general
+- Automatic classification into 15 document types: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, financial_report, meeting_minutes, resume, travel_itinerary, general
+- API retry on 5xx/timeout errors
+- Parallel batch processing (`--workers` flag)
+- CSV export (`--format csv`)
+- Pretty human-readable output (`--format pretty`)
 - Generates suggested actions for each type (create_expense, add_contact, summarize, etc.)
 - Batch processing of entire directories
 - Generates searchable PDFs (embeds text layer based on bounding boxes, supports text selection and search)
@@ -197,6 +201,10 @@ If the API does not return any bounding box data, a fallback version overlays fu
 | Driver License | license number, class, expiry, address | store_license_info, check_expiry |
 | Tax Form | tax year, total income, tax payable, deductions | summarize_tax, suggest_deductions |
 | General | no specific pattern | summarize, translate, search_keywords |
+| Financial Report | revenue, profit/loss, margins, balance sheet | summarize_financials, compare_periods, flag_risks |
+| Meeting Minutes | attendees, decisions, action items | extract_action_items, create_calendar_events, send_summary |
+| Resume/CV | name, email, education, skills | create_candidate_profile, match_jobs, extract_skills |
+| Travel Itinerary | flights, hotels, dates, destinations | create_calendar_events, set_reminders, check_visa |
 
 ## Troubleshooting
 
@@ -279,6 +287,7 @@ MIT-0
 
 ## Version History
 
+- v1.1.0 — Added 4 document types, API retry, parallel batch, CSV export, pretty output (2025-03-15)
 - v1.0.0 — Initial release (2025-03-15)
 
 ---
