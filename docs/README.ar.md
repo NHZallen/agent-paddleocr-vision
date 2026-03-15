@@ -1,15 +1,15 @@
-# Agent PaddleOCR Vision — OCR مع إجراءات للعامل
+# Agent PaddleOCR Vision —— فهم الوثائق وإجراءات العامل باستخدام PaddleOCR
 
-حوّل المستندات إلى إجراءات قابلة للتنفيذ للذكاء الاصطناعي. يعتمد فقط على PaddleOCR السحابي.
+**حوّل المستندات إلى تعليمات قابلة للتنفيذ لوكلاء الذكاء الاصطناعي.** تعتمد هذه الأداة exclusively على واجهة برمجة التطبيقات السحابية لـ PaddleOCR، وتصنف أنواع المستندات تلقائيًا وتوفر اقتراحات بارامترات منظمة وموجهة.
 
-## الميزات
+## نظرة عامة على الميزات
 
-- دقة عالية باستخدام PaddleOCR (يدعم الجداول والمعادلات)
-- تصنيف تلقائي لـ 11 نوع مستند
-- اقتراح إجراءات مع معلمات منظمة
-- معالجة دفعات (batch)
-- إنشاء PDF ذو طبقة نصية قابلة للبحث
-- `agent_prompt` جاهز للتكامل مع LLM
+- التعرف البصري على الأحرف (OCR) عبر PaddleOCR السحابي (يدعم الجداول والمعادجات واللغات المتعددة)
+- التصنيف التلقائي لـ 11 نوع مستند: invoice, business_card, receipt, table, contract, id_card, passport, bank_statement, driver_license, tax_form, general
+- تولد اقتراحات إجراءات لكل نوع (create_expense, add_contact, summarize، إلخ)
+- معالجة دفعات (Batch) لدلائل كاملة
+- توليد PDFs ذات طبقة نصية قابلة للبحث (بناءً على إحداثيات المربعات المحيطة، تدعم تحديد النص والبحث)
+- تُنتج `agent_prompt` جاهز للاستخدام كرسالة نظام لل LLM
 
 ## التثبيت
 
@@ -35,30 +35,42 @@ cd skills/agent-paddleocr-vision
 pip3 install -r scripts/requirements.txt
 ```
 
-### الإعداد
+### إعداد API PaddleOCR
 
-متغيرات البيئة المطلوبة:
+يجب تعيين متغيرين بيئيين:
 
 ```bash
 export PADDLEOCR_DOC_PARSING_API_URL=https://your-api.paddleocr.com/layout-parsing
-export PADDLEOCR_ACCESS_TOKEN=your_token
+export PADDLEOCR_ACCESS_TOKEN=your_access_token
 ```
+
+*ملاحظة: يجب أن تنتهي رابط API بـ `/layout-parsing`.*
 
 ## الاستخدام
 
-### معالجة ملف واحد
+### مستند فردي
 
 ```bash
-python3 scripts/doc_vision.py --file-path فاتورة.jpg --pretty
-python3 scripts/doc_vision.py --file-path مستند.pdf --make-searchable-pdf --output نتيجة.json
-python3 scripts/doc_vision.py --file-path مستند.pdf --format text
+# استخدام أساسي: معالجة صورة أو PDF، وإخراج JSON pretty
+python3 scripts/doc_vision.py --file-path ./invoice.jpg --pretty
+
+# إنشاء PDF قابل للبحث أيضًا
+python3 scripts/doc_vision.py --file-path ./document.pdf --make-searchable-pdf --output result.json
+
+# نص فقط
+python3 scripts/doc_vision.py --file-path ./doc.pdf --format text
 ```
 
-### المعالجة بالدفعات
+### المعالجة بالدفعات (Batch)
 
 ```bash
+# معالجة جميع الملفات المدعومة في دليل (.pdf, .png, .jpg, .jpeg, .bmp, .tiff, .webp)
 python3 scripts/doc_vision.py --batch-dir ./inbox --output-dir ./out
 ```
+
+نتائج الدفعات:
+- يتم إنشاء JSON ملخص (يشمل العدد الإجمالي، عدد النجاح/الفشل، إحصائيات حسب النوع)
+- كل ملف يحصل على JSON خاص به في `--output-dir`
 
 ### Docker
 
@@ -67,39 +79,200 @@ docker build -t agent-paddleocr-vision:latest .
 docker run --rm -v $(pwd)/data:/data \
   -e PADDLEOCR_DOC_PARSING_API_URL -e PADDLEOCR_ACCESS_TOKEN \
   agent-paddleocr-vision:latest \
-  --file-path /data/فاتورة.jpg --pretty
+  --file-path /data/invoice.jpg --pretty --make-searchable-pdf
 ```
 
-## مخرجات JSON
+## تنسيق الإخراج
 
-انظر `docs/README.en.md` للحصول على المخطط الكامل ومعلومات الحقول.
+```json
+{
+  "ok": true,
+  "document_type": "invoice",
+  "confidence": 0.94,
+  "text": "النص المستخرج كامل (الصفحات مفصولة بسطرين جديدين)",
+  "pruned_result": { ... هيكل رد الخام من PaddleOCR ... },
+  "suggested_actions": [
+    {
+      "action": "create_expense",
+      "description": "سجل هذه الفاتورة في النظام المحاسبي",
+      "parameters": {
+        "amount": "1200",
+        "vendor": "某某科技有限公司",
+        "date": "2025-03-15",
+        "tax_id": "12345678"
+      },
+      "confidence": 0.92
+    },
+    {
+      "action": "archive",
+      "description": "أرشفة هذه الفاتورة في مكتبة المستندات",
+      "parameters": {},
+      "confidence": 0.96
+    },
+    {
+      "action": "tax_report",
+      "description": "ضيفها لتقرير الضرائب الحالي",
+      "parameters": { "tax_period": "2025-03" },
+      "confidence": 0.78
+    }
+  ],
+  "agent_prompt": "You are a financial assistant. The user has provided an invoice.\nExtracted data:\n- Amount: 1200\n- Vendor: 某某科技有限公司\n...\nPossible actions: create_expense, archive, tax_report\nRespond appropriately based on user's goal.",
+  "top_action": "create_expense",
+  "metadata": {
+    "pages": 1,
+    "backend": "paddleocr",
+    "source": "/مسار/مطلق/للفاتورة.jpg"
+  },
+  "searchable_pdf": "/مسار/مطلق/للفاتورة.searchable.pdf"
+}
+```
 
-## أنواع المستندات والإجراءات
+### مرجع الحقول
 
-| النوع | الإجراءات |
-|------|----------|
-| فاتورة (invoice) | create_expense, archive, tax_report |
-| بطاقة عمل (business_card) | add_contact, save_vcard |
-| إيصال (receipt) | create_expense, split_bill |
-| جدول (table) | export_csv, analyze_data |
-| عقد (contract) | summarize, extract_dates, flag_obligations |
-| بطاقة هوية (id_card) | extract_id_info, verify_age |
-| جواز سفر (passport) | store_passport_info, check_validity |
-| كشف حساب (bank_statement) | categorize_transactions, generate_report |
-| رخصة قيادة (driver_license) | store_license_info, check_expiry |
-| نموذج ضريبي (tax_form) | summarize_tax, suggest_deductions |
-| عام (general) | summarize, translate, search_keywords |
+| الحقل | الوصف |
+|------|-------|
+| ok | ما إذا كان المعالجة ناجحة |
+| document_type | نوع المستند (invoice, business_card, ...) |
+| confidence | درجة ثقة التصنيف (0–1) |
+| text | كل النص المستخرج من كل الصفحات (تنسيق Markdown) |
+| pruned_result | رد API الخام؛ يحتوي على layoutParsingResults لكل صفحة للمعالجة المتقدمة |
+| suggested_actions | قائمة بالإجراءات المقترحة، مرتبة حسب الثقة |
+| agent_prompt | Prompt مخصص جاهز لإرساله إلى LLM |
+| top_action | اسم الإجراء الأعلى ثقة |
+| metadata | يتضمن عدد الصفحات، نوع النهاية الخلفية، مصدر المسار، إلخ |
+| searchable_pdf | مسار PDF ذو طبقة نصية (يظهر فقط عند استخدام `--make-searchable-pdf`) |
 
-## PDF قابل للبحث
+## دمج الوكيل (Agent)
 
-يؤدي `--make-searchable-pdf` إلى إنشاء PDF ذات طبقة نصية محاذاة حسب الإحداثيات من PaddleOCR. يتطلب `poppler` و `reportlab` و `pypdf` و `pdf2image`.
+1. **استخدم `agent_prompt` مباشرة**: أرسل `agent_prompt` كرسالة نظام أو سياق مقدم؛ سينتج LLM ردودًا مناسبة بناءً على البيانات والإجراءات المستخرجة.
+2. **توفير أزرار تفاعلية**: حوّل `suggested_actions` إلى أزرار رد سريعة ليختارها المستخدم.
+3. **تنفيذ تلقائي**: بعد تأكيد المستخدم، اتصل بالدالة المقابلة تلقائيًا (مثل `create_expense` مع `parameters`).
 
-## استكشاف الأخطاء
+مثال (شفرة تشبه Node.js):
 
-- **403/404**: تأكد من صحة الرابط وأنه ينتهي بـ `/layout-parsing` وأن Token صالح.
-- **فشل إنشاء PDF**: تأكد من تثبيت `poppler` والحزم Python.
-- **جودة OCR منخفضة**: استخدم مستندات ذات دقة 300 DPI أو أعلى، إضاءة جيدة.
+```javascript
+const result = await callAgentVision({ 'file-path': '/مسار/المستند.pdf' });
+if (result.document_type === 'invoice') {
+  for (const act of result.suggested_actions) {
+    showButton(act.description, { action: act.action, params: act.parameters });
+  }
+}
+```
+
+## PDF ذو طبقة نصية قابلة للبحث
+
+`--make-searchable-pdf` ينشئ PDF جديد به طبقة نصية可以选择تبحث. كيف يعمل:
+
+1. تُحوَّل كل صفحة من PDF المدخل إلى صورة نقطية بدقة 200 DPI (باستخدام `pdf2image` و `poppler` بالنظام)
+2. بناءً على إحداثيات `bbox` للقطع الصغيرة من `layoutParsingResults[].prunedResult` لـ PaddleOCR، يُوضع نص غير مرئي في المواقع المقابلة (باستخدام `reportlab`)
+3. تبقى الصورة كخلفية؛ تُوضع طبقة النص فوقها. ستطابق قراءات PDF النص المضمن.
+
+إذا لم تُرجع API أي bounding boxes، سينتج الإصدار الاحتياطي نص الصفحة ككل في الأسفل؛ يكون قابلاً للبحث ولكن مواقع النص غير دقيقة.
+
+### البرمجيات المطلوبة
+
+- النظام: `poppler-utils` (Ubuntu: `apt-get install poppler-utils`; macOS: `brew install poppler`)
+- Python: `reportlab`, `pypdf`, `pillow`, `pdf2image`
+
+## أنواع المستندات и الإجراءات
+
+| النوع | التحديد | الإجراءات المقترحة |
+|------|----------|-------------------|
+| الفاتورة (invoice) | رقم الفاتورة، المبلغ، رقم الضريبي، البائع/المشتري | create_expense, archive, tax_report |
+| بطاقة العمل (business_card) | الاسم، الهاتف، البريد الإلكتروني، الوظيفة | add_contact, save_vcard |
+| الإيصال (receipt) | اسم المحل، المبلغ المدفوع، تاريخ المعاملة | create_expense, split_bill |
+| الجدول (table) | خطوط الشبكة، متعدد الأعمدة، رؤوس الأعمدة | export_csv, analyze_data |
+| العقد (contract) | أرقام البنود، التوقيعات، تاريخ السريان | summarize, extract_dates, flag_obligations |
+| بطاقة الهوية (id_card) | رقم الهوية، الاسم، تاريخ الميلاد، الجنس | extract_id_info, verify_age |
+| جواز السفر (passport) | رقم الجواز، الجنسية، تواريخ الإصدار/الانقضاء | store_passport_info, check_validity |
+| كشف الحساب (bank_statement) | رقم الحساب، فترة الكشف، الرصيد، سجل المعاملات | categorize_transactions, generate_report |
+| رخصة القيادة (driver_license) | رقم الرخصة، الصف، الانقضاء، العنوان | store_license_info, check_expiry |
+| النموذج الضريبي (tax_form) |年度 الضريبي، إجمالي الدخل، الضريبة المستحقة، الخصومات | summarize_tax, suggest_deductions |
+| عام (general) | لا نمط محدد | summarize, translate, search_keywords |
+
+## استكشاف الأخطاء وإصلاحها
+
+### API PaddleOCR تُرجع 403 أو 404
+
+تحقق من:
+- `PADDLEOCR_DOC_PARSING_API_URL` صحيحة وتنتهي بـ `/layout-parsing`
+- `PADDLEOCR_ACCESS_TOKEN` صالحة وغير منتهية
+- اتصال الشبكة إلى نقطة نهاية API
+
+### فشل إنشاء PDF قابل للبحث
+
+تأكد من تثبيت:
+```bash
+pip3 show reportlab pypdf pdf2image
+```
+وتأكد من وجود `poppler` في النظام:
+```bash
+which pdftoppm  # يجب أن يوجد
+```
+
+إذا استمر الفشل، راجع `stderr` للأخطاء؛ أسباب شائعة:
+- PDF الإدخال تالف أو مشفر
+- بيانات bounding box مفقودة (لا يزال ي 생성 لكن موضع النص تقريبي)
+
+### جودة OCR منخفضة
+
+- تأكد من وضوح المستند، إضاءة جيدة، تباين عالٍ
+- بالنسبة للصينية، PaddleOCR يدعمها؛ لغات أخرى عادة تُكتشف تلقائيًا
+- زد DPI للمصدر (موصى به 300+)
+
+### المعالجة بالدفعات بطيئة
+
+- فكر في المعالجة المتوازية (مثل GNU parallel)
+- إذا كنت تستخدم API سحابية، احترم حدود المعدل؛ زد timeout أو قسم إلى دفعات أصغر
+
+## العمارة المعمارية
+
+```
+doc_vision.py  →  نقطة الدخول الرئيسية
+   ├─ ocr_engine.py      → يستدعي API PaddleOCR، يرجع نص + pruned_result
+   ├─ classify.py        → تصنيف نوع المستند بناءً على محتوى النص
+   ├─ actions.py         → يستخرج البارامترات ويولد قائمة الإجراءات المقترحة
+   ├─ templates/         → قوالب Jinja2 لـ agent_prompt
+   └─ make_searchable_pdf.py → ينشئ PDF ذو طبقة نصية باستخدام إحداثيات bbox
+```
+
+## تطوير أنواع مستندات جديدة
+
+1. في `scripts/classify.py`، أضِد دالة مطابقة وثابت:
+   ```python
+   DOC_TYPE_MY_TYPE = "my_type"
+   def match_my_type(text: str) -> float:
+       patterns = [r"كلمة_مفتاحية1", r"كلمة_مفتاحية2"]
+       return sum(bool(re.search(p, text, re.IGNORECASE)) for p in patterns) / len(patterns)
+   ```
+   ثم أضف `DOC_TYPE_MY_TYPE: match_my_type(text)` إلى قاموس `scores` في `classify()`.
+
+2. في `scripts/actions.py`، أضف دالة مولد:
+   ```python
+   def suggest_my_type(text: str, metadata) -> List[Action]:
+       # استخراج البارامترات، إرجاع قائمة Action
+       ...
+   SUGGESTION_DISPATCH[DOC_TYPE_MY_TYPE] = suggest_my_type
+   ```
+
+3. أضف `templates/my_type.md` (قالب Jinja2) يحتوي على تعليمات وبارامترات للوكيل.
+
+4. أضف صف في جدول "مرجع أنواع المستندات" بملف `docs/README.zh.md`.
+
+## الأداء والموارد
+
+- زمن الانتقال المعتاد لكل طلب: 2–15 ثانية (حسب عدد الصفحات وسرعة API)
+- استخدام الذاكرة: قد يصل إلى 2–3× حجم الملف أثناء معالجة PDFs
+- وضع الدفعات لا يتضمن توازيًا مدمجًا؛ غلّفه بـ multiprocessing إذا لزم الأمر
 
 ## الترخيص
 
 MIT-0
+
+## سجل الإصدارات
+
+- v1.0.0 — الإصدار الأولي (2025-03-15)
+
+---
+
+**مشاكل؟** راجع مخرج `stderr` أو افتح issue على GitHub.
