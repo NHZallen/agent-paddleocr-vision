@@ -141,7 +141,7 @@ def match_passport(text: str) -> float:
     - Date of issue/expiry
     """
     patterns = [
-        r"Passport No\.|護照號碼|護照號碼",
+        r"(?:Passport No|護照號碼)[.:：]?" ,
         r"National(?:ity)?|國籍",
         r"Date of Issue|签发日期|發照日期",
         r"Date of Expiry|有效期至|到期日",

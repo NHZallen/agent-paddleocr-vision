@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional, List
 
 # Add scripts directory to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ocr_engine import parse_document  # our OCR wrapper, will support multi-backend later
 from classify import classify
