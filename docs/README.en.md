@@ -1,3 +1,11 @@
+<p align="center">
+  <strong>🌐 Languages:</strong>
+  <a href="README.zh.md">中文</a> |
+  <a href="README.en.md">English</a> |
+  <a href="README.es.md">Español</a> |
+  <a href="README.ar.md">العربية</a>
+</p>
+
 # Agent PaddleOCR Vision —— Document Understanding and Agent Actions with PaddleOCR
 
 **Transform documents into actionable instructions for AI agents.** This skill exclusively supports PaddleOCR cloud API, automatically classifying document types and providing structured parameter suggestions and prompts.

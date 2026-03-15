@@ -1,3 +1,11 @@
+<p align="center">
+  <strong>🌐 語言切換：</strong>
+  <a href="README.zh.md">中文</a> |
+  <a href="README.en.md">English</a> |
+  <a href="README.es.md">Español</a> |
+  <a href="README.ar.md">العربية</a>
+</p>
+
 # Agent PaddleOCR Vision —— 基於 PaddleOCR 的文件理解與agent行動
 
 **將文件轉換為 AI agent 可執行的行動指引。** 本技能僅支援 PaddleOCR 雲端 API，自動分類文件類型並提供結構化的建議參數與提示詞。

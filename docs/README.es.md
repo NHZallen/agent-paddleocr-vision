@@ -1,3 +1,11 @@
+<p align="center">
+  <strong>🌐 Idiomas:</strong>
+  <a href="README.zh.md">中文</a> |
+  <a href="README.en.md">English</a> |
+  <a href="README.es.md">Español</a> |
+  <a href="README.ar.md">العربية</a>
+</p>
+
 # Agent PaddleOCR Vision —— Comprensión de Documentos y Acciones del Agente con PaddleOCR
 
 **Transforma documentos en instrucciones accionables para agents de IA.** Esta herramienta utiliza exclusivamente la API en la nube de PaddleOCR, clasifica automáticamente los tipos de documentos y proporciona sugerencias de parámetros y prompts estructurados.

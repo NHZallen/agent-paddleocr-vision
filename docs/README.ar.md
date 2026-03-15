@@ -1,3 +1,11 @@
+<p align="center">
+  <strong>🌐 اللغات:</strong>
+  <a href="README.zh.md">中文</a> |
+  <a href="README.en.md">English</a> |
+  <a href="README.es.md">Español</a> |
+  <a href="README.ar.md">العربية</a>
+</p>
+
 # Agent PaddleOCR Vision —— فهم الوثائق وإجراءات العامل باستخدام PaddleOCR
 
 **حوّل المستندات إلى تعليمات قابلة للتنفيذ لوكلاء الذكاء الاصطناعي.** تعتمد هذه الأداة exclusively على واجهة برمجة التطبيقات السحابية لـ PaddleOCR، وتصنف أنواع المستندات تلقائيًا وتوفر اقتراحات بارامترات منظمة وموجهة.
@@ -161,7 +169,7 @@ if (result.document_type === 'invoice') {
 
 ## PDF ذو طبقة نصية قابلة للبحث
 
-`--make-searchable-pdf` ينشئ PDF جديد به طبقة نصية可以选择تبحث. كيف يعمل:
+`--make-searchable-pdf` ينشئ PDF جديد به طبقة نصية يمكن اختيارها والبحث فيها. كيف يعمل:
 
 1. تُحوَّل كل صفحة من PDF المدخل إلى صورة نقطية بدقة 200 DPI (باستخدام `pdf2image` و `poppler` بالنظام)
 2. بناءً على إحداثيات `bbox` للقطع الصغيرة من `layoutParsingResults[].prunedResult` لـ PaddleOCR، يُوضع نص غير مرئي في المواقع المقابلة (باستخدام `reportlab`)
@@ -174,7 +182,7 @@ if (result.document_type === 'invoice') {
 - النظام: `poppler-utils` (Ubuntu: `apt-get install poppler-utils`; macOS: `brew install poppler`)
 - Python: `reportlab`, `pypdf`, `pillow`, `pdf2image`
 
-## أنواع المستندات и الإجراءات
+## أنواع المستندات والإجراءات
 
 | النوع | التحديد | الإجراءات المقترحة |
 |------|----------|-------------------|
@@ -212,7 +220,7 @@ which pdftoppm  # يجب أن يوجد
 
 إذا استمر الفشل، راجع `stderr` للأخطاء؛ أسباب شائعة:
 - PDF الإدخال تالف أو مشفر
-- بيانات bounding box مفقودة (لا يزال ي 생성 لكن موضع النص تقريبي)
+- بيانات bounding box مفقودة (لا يزال ي生成 لكن موضع النص تقريبي)
 
 ### جودة OCR منخفضة
 
